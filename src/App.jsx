@@ -2,6 +2,7 @@ import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
 import FeatureGrid from "./components/FeatureGrid";
 import AggregationDemo from "./components/AggregationDemo";
+import LinkedInConnect from "./components/LinkedInConnect";
 
 function App() {
   return (
@@ -10,6 +11,7 @@ function App() {
       <main>
         <Hero />
         <FeatureGrid />
+        <LinkedInConnect />
         <AggregationDemo />
       </main>
       <footer className="border-t border-slate-200 py-10">
