@@ -1,48 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search, Filter, ArrowRight } from "lucide-react";
-
-const JOBS = [
-  {
-    id: 1,
-    title: "Senior Frontend Engineer",
-    company: "LinkedIn",
-    location: "Remote • US",
-    tags: ["React", "TypeScript", "Accessibility"],
-    match: 92,
-  },
-  {
-    id: 2,
-    title: "Data Scientist, NLP",
-    company: "Indeed",
-    location: "Austin, TX",
-    tags: ["Python", "NLP", "HuggingFace"],
-    match: 88,
-  },
-  {
-    id: 3,
-    title: "DevOps Engineer",
-    company: "Seek (AU)",
-    location: "Sydney, AU",
-    tags: ["AWS", "Kubernetes", "Terraform"],
-    match: 84,
-  },
-  {
-    id: 4,
-    title: "Full‑stack Developer",
-    company: "Naukri (IN)",
-    location: "Bengaluru, IN",
-    tags: ["Node.js", "MongoDB", "Next.js"],
-    match: 90,
-  },
-  {
-    id: 5,
-    title: "AI Product Manager",
-    company: "Glassdoor",
-    location: "San Francisco, CA",
-    tags: ["Product", "AI", "Strategy"],
-    match: 86,
-  },
-];
 
 const TAGS = [
   "Remote",
@@ -58,20 +15,46 @@ const TAGS = [
 export default function AggregationDemo() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(["Remote"]);
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const filtered = useMemo(() => {
-    const q = query.toLowerCase();
-    return JOBS.filter((j) => {
-      const matchesQuery =
-        j.title.toLowerCase().includes(q) ||
-        j.company.toLowerCase().includes(q) ||
-        j.location.toLowerCase().includes(q);
-      const matchesTags = selected.every((t) =>
-        [j.location, ...j.tags].join(" ").toLowerCase().includes(t.toLowerCase())
-      );
-      return matchesQuery && matchesTags;
-    }).sort((a, b) => b.match - a.match);
-  }, [query, selected]);
+  const backend = import.meta.env.VITE_BACKEND_URL || "";
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchJobs() {
+      if (!backend) return;
+      setLoading(true);
+      setError("");
+      try {
+        const params = new URLSearchParams();
+        if (query) params.set("q", query);
+        if (selected.length) params.set("tags", selected.join(","));
+        const res = await fetch(`${backend}/api/jobs?${params.toString()}`);
+        if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+        const data = await res.json();
+        if (!cancelled) {
+          setJobs(Array.isArray(data.items) ? data.items : []);
+        }
+      } catch (e) {
+        if (!cancelled) setError("Could not load jobs. Please try again.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    fetchJobs();
+    return () => {
+      cancelled = true;
+    };
+  }, [backend, query, selected]);
+
+  const display = useMemo(() => {
+    // Fallback: if backend not configured, show empty list
+    const list = Array.isArray(jobs) ? jobs : [];
+    // Already sorted by backend; ensure stable sort
+    return [...list].sort((a, b) => (b.match || 0) - (a.match || 0));
+  }, [jobs]);
 
   return (
     <section id="explore" className="py-16 sm:py-20">
@@ -123,17 +106,23 @@ export default function AggregationDemo() {
             </div>
 
             <div className="mt-6 divide-y divide-slate-200">
-              {filtered.length === 0 && (
+              {error && (
+                <p className="py-4 text-center text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md">{error}</p>
+              )}
+              {loading && (
+                <p className="py-6 text-center text-sm text-slate-500">Loading jobs…</p>
+              )}
+              {!loading && display.length === 0 && (
                 <p className="py-6 text-center text-sm text-slate-500">No results. Try a different query or tag.</p>
               )}
-              {filtered.map((job) => (
+              {display.map((job) => (
                 <article key={job.id} className="py-4">
                   <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
                     <div>
                       <h3 className="text-base font-semibold text-slate-900">{job.title}</h3>
                       <p className="text-sm text-slate-600">{job.company} • {job.location}</p>
                       <div className="mt-2 flex flex-wrap gap-1.5">
-                        {job.tags.map((tg) => (
+                        {Array.isArray(job.tags) && job.tags.map((tg) => (
                           <span key={tg} className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-600">
                             {tg}
                           </span>
@@ -154,7 +143,7 @@ export default function AggregationDemo() {
             </div>
           </div>
           <p id="how" className="mt-4 text-center text-xs text-slate-500">
-            Demo data shown for illustration. Real app connects securely to partner APIs.
+            Live data powered by the backend and database. Secure integrations in production.
           </p>
         </div>
       </div>
